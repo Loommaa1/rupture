@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rupture — tir tactique 5 contre 5</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">{ "imports": { "three": "/three/build/three.module.js" } }</script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- ===== Accueil ===== -->
+  <div id="menu">
+    <div class="menu-inner">
+      <header class="brand">
+        <div class="logo"><span class="logo-bar"></span>RUPTURE</div>
+        <p class="sub">Tir tactique · 5 contre 5 · Carte « Raffinerie »</p>
+      </header>
+      <div class="menu-grid">
+        <section class="panel">
+          <h2>1. Ton pseudo</h2>
+          <input id="name" maxlength="16" placeholder="Ex. : Ardoise" autocomplete="off" />
+          <h2>2. Ton personnage</h2>
+          <div id="agents" class="agents"></div>
+          <button id="play" class="play">Entrer en jeu</button>
+          <p class="hint">Les places libres sont prises par des bots : tu peux jouer seul.</p>
+        </section>
+        <section class="panel rules">
+          <h2>Le principe</h2>
+          <ul>
+            <li><b>Attaque</b> : pose le <b>Noyau</b> sur le site A ou B (maintiens <kbd>F</kbd> sur la zone).</li>
+            <li><b>Défense</b> : empêche la pose, ou désamorce le Noyau (maintiens <kbd>F</kbd> à côté, 7 s).</li>
+            <li>Une seule vie par manche. Première équipe à <b>13 manches</b>. Changement de côté après 12.</li>
+            <li>Au début de chaque manche : <b>20 s d'achat</b> (<kbd>B</kbd>). L'argent vient des victoires, défaites, éliminations et poses.</li>
+            <li><b>Tir précis à l'arrêt</b>. En courant ou en sautant, les balles partent n'importe où. La tête est très mortelle.</li>
+          </ul>
+          <h2>Touches</h2>
+          <div class="keys">
+            <span><kbd>Z Q S D</kbd> se déplacer</span>
+            <span><kbd>Maj</kbd> marcher (précis, silencieux)</span>
+            <span><kbd>Ctrl</kbd> / <kbd>C</kbd> s'accroupir</span>
+            <span><kbd>Espace</kbd> sauter</span>
+            <span><kbd>Clic gauche</kbd> tirer</span>
+            <span><kbd>Clic droit</kbd> viser / lunette</span>
+            <span><kbd>R</kbd> recharger</span>
+            <span><kbd>1</kbd> arme principale · <kbd>2</kbd> pistolet · <kbd>3</kbd> couteau</span>
+            <span><kbd>E</kbd> capacité du personnage</span>
+            <span><kbd>F</kbd> poser / désamorcer (maintenir)</span>
+            <span><kbd>G</kbd> lâcher le Noyau</span>
+            <span><kbd>B</kbd> magasin</span>
+            <span><kbd>Tab</kbd> tableau des scores</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Interface en jeu ===== -->
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div class="team-side left"><span id="leftName"></span><span id="leftRole" class="role"></span><div id="leftAlive" class="alive-row"></div></div>
+      <div class="score-box">
+        <span id="leftScore" class="sc">0</span>
+        <div class="clock"><span id="timer">0:00</span><small id="phaseLabel"></small></div>
+        <span id="rightScore" class="sc">0</span>
+      </div>
+      <div class="team-side right"><span id="rightName"></span><span id="rightRole" class="role"></span><div id="rightAlive" class="alive-row"></div></div>
+    </div>
+    <div id="feed"></div>
+    <div id="banner" class="hidden"><div id="bannerTitle"></div><div id="bannerSub"></div></div>
+    <div id="crosshair"><i class="ch t"></i><i class="ch b"></i><i class="ch l"></i><i class="ch r"></i><i class="dot"></i></div>
+    <div id="hitmark" class="hidden"></div>
+    <div id="progress" class="hidden"><div id="progressLabel"></div><div class="bar"><div id="progressFill"></div></div></div>
+    <div id="bombHint" class="hidden"></div>
+    <div id="bottomLeft">
+      <div class="vitals">
+        <div class="hp"><span id="hp">100</span><small>PV</small></div>
+        <div class="armor"><span id="armor">0</span><small>gilet</small></div>
+      </div>
+      <div class="ability"><kbd>E</kbd><span id="abilityName"></span><span id="charges"></span></div>
+    </div>
+    <div id="bottomRight">
+      <div id="money">800 ¤</div>
+      <div id="weaponName">Dard</div>
+      <div class="ammo"><span id="mag">12</span><small>/ <span id="reserve">36</span></small></div>
+      <div id="reloadHint" class="hidden">Rechargement…</div>
+    </div>
+    <canvas id="minimap" width="200" height="184"></canvas>
+    <div id="spectate" class="hidden"></div>
+    <div id="buyHint" class="hidden">Phase d'achat — appuie sur <kbd>B</kbd> pour le magasin</div>
+  </div>
+  <div id="scope" class="hidden"><div class="scope-ring"></div></div>
+  <div id="flash"></div>
+  <div id="hurt"></div>
+
+  <!-- Magasin -->
+  <div id="shop" class="hidden">
+    <div class="shop-box">
+      <header><h2>Magasin</h2><span id="shopMoney"></span><span id="shopTimer"></span><button id="shopClose">Fermer (B)</button></header>
+      <div id="shopGrid"></div>
+      <p class="hint">Clique pour acheter. Clique à nouveau sur un objet acheté pendant cette phase pour le revendre (remboursé).</p>
+    </div>
+  </div>
+
+  <!-- Tableau des scores -->
+  <div id="board" class="hidden"></div>
+
+  <!-- Pause -->
+  <div id="pause" class="hidden">
+    <div class="pause-box">
+      <h2>Pause</h2>
+      <p>La partie continue pendant ce temps !</p>
+      <button id="resume">Reprendre</button>
+      <label class="sens">Sensibilité de la souris <input id="sens" type="range" min="0.2" max="3" step="0.05" value="1" /><span id="sensVal">1</span></label>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

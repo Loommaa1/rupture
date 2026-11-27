@@ -1,0 +1,17 @@
+{
+  "name": "rupture",
+  "version": "0.1.0",
+  "description": "Rupture : jeu de tir tactique 5 contre 5 en 3D, multijoueur, dans le navigateur",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^5.3.0",
+    "socket.io": "^4.8.4",
+    "three": "^0.187.0"
+  }
+}
